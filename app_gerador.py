@@ -2,7 +2,6 @@ import streamlit as st
 from datetime import datetime, timedelta
 import io
 import zipfile
-import re
 
 # Lista de estados
 estados = [
@@ -90,19 +89,6 @@ def ultimo_dia_do_mes(ano, mes):
     except ValueError:
         return None
 
-def validar_competencia(competencia, ano, meses_selecionados):
-    """Valida se a competência está no formato AAAAMM e corresponde aos meses selecionados."""
-    if not re.match(r"^\d{6}$", competencia):
-        return False, "Competência deve estar no formato AAAAMM (ex.: 202507)."
-    try:
-        ano_comp = int(competencia[:4])
-        mes_comp = int(competencia[4:6])
-        if ano_comp != ano or mes_comp not in [int(mes[0]) for mes in meses_selecionados]:
-            return False, "Competência deve corresponder ao ano e a um dos meses selecionados."
-        return True, ""
-    except ValueError:
-        return False, "Competência inválida."
-
 st.title("Gerador de Arquivos por Empresa, Ano e Mês")
 
 # Interface do Streamlit
@@ -117,41 +103,37 @@ if st.button("Gerar arquivos"):
     elif not competencia:
         st.warning("Informe a competência.")
     else:
-        # Validar competência
-        is_valid, erro_msg = validar_competencia(competencia, ano, meses_selecionados)
-        if not is_valid:
-            st.error(erro_msg)
-        else:
-            try:
-                memory_file = io.BytesIO()
-                with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-                    for mes_tuple in meses_selecionados:
-                        mes = mes_tuple[0]
-                        ultimo_dia = ultimo_dia_do_mes(ano, int(mes))
-                        if ultimo_dia is None:
-                            st.error(f"Data inválida para o mês {mes}/{ano}.")
-                            break
-                        data_ini = f"{ano}{mes}01"
-                        data_fim = f"{ano}{mes}{ultimo_dia:02d}"
+        try:
+            memory_file = io.BytesIO()
+            with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for mes_tuple in meses_selecionados:
+                    mes = mes_tuple[0]
+                    ultimo_dia = ultimo_dia_do_mes(ano, int(mes))
+                    if ultimo_dia is None:
+                        st.error(f"Data inválida para o mês {mes}/{ano}.")
+                        break
+                    data_ini = f"{ano}{mes}01"
+                    data_fim = f"{ano}{mes}{ultimo_dia:02d}"
 
-                        for estado in estados:
-                            conteudo = modelo_base.format(
-                                estado=estado,
-                                data_ini=data_ini,
-                                data_fim=data_fim,
-                                competencia=competencia,
-                                **modelos[empresa]
-                            )
-                            nome_arquivo = f"{empresa}/{ano}/{mes}/{estado}_{ano}{mes}.txt"
-                            zf.writestr(nome_arquivo, conteudo)
+                    for estado in estados:
+                        conteudo = modelo_base.format(
+                            estado=estado,
+                            data_ini=data_ini,
+                            data_fim=data_fim,
+                            competencia=competencia,
+                            **modelos[empresa]
+                        )
+                        nome_arquivo = f"{empresa}/{ano}/{mes}/{estado}_{ano}{mes}.txt"
+                        zf.writestr(nome_arquivo, conteudo)
 
-                memory_file.seek(0)
-                st.download_button(
-                    label="Baixar arquivos ZIP",
-                    data=memory_file,
-                    file_name=f"{empresa}_{ano}_arquivos.zip",
-                    mime="application/zip"
-                )
-                st.success("Arquivos gerados com sucesso!")
-            except Exception as e:
-                st.error(f"Erro ao gerar os arquivos: {str(e)}")
+            memory_file.seek(0)
+            st.download_button(
+                label="Baixar arquivos ZIP",
+                data=memory_file,
+                file_name=f"{empresa}_{ano}_arquivos.zip",
+                mime="application/zip"
+            )
+            st.success("Arquivos gerados com sucesso!")
+        except Exception as e:
+            st.error(f"Erro ao gerar os arquivos: {str(e)}")
+            
